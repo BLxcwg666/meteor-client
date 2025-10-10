@@ -24,6 +24,10 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 public class Sprint extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
+    private Boolean targetSprintState = null;
+    private int stateChangeTicks = 0;
+    private static final int DEBOUNCE_TICKS = 2;
+
     public enum Mode {
         Strict,
         Rage
@@ -74,7 +78,26 @@ public class Sprint extends Module {
     private void onTickMovement(TickEvent.Post event) {
         if (unsprintInWater.get() && mc.player.isTouchingWater()) return;
 
-        mc.player.setSprinting(shouldSprint());
+        boolean shouldSprint = shouldSprint();
+        boolean currentlySprinting = mc.player.isSprinting();
+
+        // Debounce: only apply sprint state change if it persists for multiple ticks
+        if (shouldSprint != currentlySprinting) {
+            if (targetSprintState == null || targetSprintState != shouldSprint) {
+                targetSprintState = shouldSprint;
+                stateChangeTicks = 1;
+            } else {
+                stateChangeTicks++;
+                if (stateChangeTicks >= DEBOUNCE_TICKS) {
+                    mc.player.setSprinting(shouldSprint);
+                    targetSprintState = null;
+                    stateChangeTicks = 0;
+                }
+            }
+        } else {
+            targetSprintState = null;
+            stateChangeTicks = 0;
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
